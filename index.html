@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Equal flight time map</title>
+<style>
+:root{--bg:#f6f5f1;--fg:#1d1d1b;--mut:#6b6a64;--card:#fff;--line:#dcdad2;--sea:#e3edf4;--land:#cdd7c6;--a:#d9480f;--b:#1c6ed5;--ok:#0a8f5b;--dim:#9a9a94;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15161a;--fg:#ececea;--mut:#9b9a94;--card:#202227;--line:#33353b;--sea:#1b2733;--land:#2e3a2f;--a:#ff8c5a;--b:#6aa6ff;--ok:#3ddc97;--dim:#5d5e63}}
+:root[data-theme="dark"]{--bg:#15161a;--fg:#ececea;--mut:#9b9a94;--card:#202227;--line:#33353b;--sea:#1b2733;--land:#2e3a2f;--a:#ff8c5a;--b:#6aa6ff;--ok:#3ddc97;--dim:#5d5e63}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;padding:12px;max-width:900px;margin:0 auto}
+h1{font-size:19px;margin:4px 0 10px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+label{display:block;font-size:12px;color:var(--mut);margin-bottom:2px}
+input[type=text]{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);font-size:16px}
+#ia{border-left:5px solid var(--a)}#ib{border-left:5px solid var(--b)}
+.tol{margin:10px 0 6px}.tol input{width:100%}
+#st{font-size:13px;color:var(--mut);margin:4px 0}
+.mapw{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+canvas{display:block;width:100%;height:55vh;min-height:280px;touch-action:none;cursor:grab}
+.zb{position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:4px}
+.zb button{width:34px;height:34px;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;font-size:17px}
+#info{min-height:22px;margin:8px 0;font-weight:600}
+#list{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+#list button{display:grid;grid-template-columns:1fr auto auto auto;gap:10px;width:100%;text-align:left;padding:8px 10px;border:0;border-bottom:1px solid var(--line);background:none;color:var(--fg);font:inherit}
+#list button.on{background:var(--bg)}
+.ca{color:var(--a)}.cb{color:var(--b)}.mu{color:var(--mut)}
+</style></head><body>
+<h1>Where is the flight time the same?</h1>
+<div class="row">
+<div><label for="ia">Airport A (code or city)</label><input id="ia" type="text" list="ap" value="MUC" autocomplete="off"></div>
+<div><label for="ib">Airport B (code or city)</label><input id="ib" type="text" list="ap" value="LHR" autocomplete="off"></div>
+</div>
+<div class="tol"><label for="tl">Allowed difference: <b id="tv">±30 min</b></label><input id="tl" type="range" min="0" max="120" step="5" value="30"></div>
+<div id="st"></div>
+<div class="mapw"><canvas id="m"></canvas><div class="zb"><button id="zi" aria-label="Zoom in">+</button><button id="zo" aria-label="Zoom out">−</button><button id="zf" aria-label="Fit">⤢</button></div></div>
+<div id="info"></div>
+<div id="list"></div>
+<p class="mu" style="font-size:12px">Times are estimates (great-circle distance at about 810 km/h plus 30 min for taxi, climb and descent), not live schedules. Green dots are destinations whose flight times from A and B differ by no more than the allowed difference.</p>
+<datalist id="ap"></datalist>
+<script>
+const D="FRA|Frankfurt|50.03|8.57;MUC|Munich|48.35|11.79;BER|Berlin|52.36|13.5;HAM|Hamburg|53.63|9.99;DUS|Düsseldorf|51.29|6.77;STR|Stuttgart|48.69|9.22;CGN|Cologne|50.87|7.14;NUE|Nuremberg|49.5|11.07;ZRH|Zurich|47.46|8.55;GVA|Geneva|46.24|6.11;VIE|Vienna|48.11|16.57;AMS|Amsterdam|52.31|4.76;BRU|Brussels|50.9|4.48;CDG|Paris|49.01|2.55;LHR|London|51.47|-0.45;DUB|Dublin|53.43|-6.27;MAD|Madrid|40.49|-3.57;BCN|Barcelona|41.3|2.08;LIS|Lisbon|38.77|-9.13;FCO|Rome|41.8|12.25;MXP|Milan|45.63|8.72;ATH|Athens|37.94|23.94;IST|Istanbul|41.28|28.75;CPH|Copenhagen|55.62|12.65;ARN|Stockholm|59.65|17.93;OSL|Oslo|60.19|11.1;HEL|Helsinki|60.32|24.96;WAW|Warsaw|52.17|20.97;PRG|Prague|50.1|14.26;BUD|Budapest|47.44|19.26;KEF|Reykjavik|63.99|-22.61;PMI|Palma|39.55|2.74;AGP|Malaga|36.67|-4.5;NCE|Nice|43.66|7.22;MRS|Marseille|43.44|5.22;LCA|Larnaca|34.88|33.62;TFS|Tenerife|28.04|-16.57;LPA|Gran Canaria|27.93|-15.39;CAI|Cairo|30.12|31.41;CMN|Casablanca|33.37|-7.59;TUN|Tunis|36.85|10.23;JNB|Johannesburg|-26.14|28.25;CPT|Cape Town|-33.97|18.6;NBO|Nairobi|-1.32|36.93;LOS|Lagos|6.58|3.32;ADD|Addis Ababa|8.98|38.8;DXB|Dubai|25.25|55.37;DOH|Doha|25.27|51.61;AUH|Abu Dhabi|24.43|54.65;TLV|Tel Aviv|32.01|34.89;RUH|Riyadh|24.96|46.7;DEL|Delhi|28.56|77.1;BOM|Mumbai|19.09|72.87;BLR|Bengaluru|13.2|77.71;CMB|Colombo|7.18|79.88;MLE|Malé|4.19|73.53;BKK|Bangkok|13.69|100.75;SIN|Singapore|1.36|103.99;KUL|Kuala Lumpur|2.75|101.71;HKG|Hong Kong|22.31|113.91;PEK|Beijing|40.08|116.58;PVG|Shanghai|31.14|121.81;ICN|Seoul|37.46|126.44;NRT|Tokyo Narita|35.77|140.39;HND|Tokyo Haneda|35.55|139.78;KIX|Osaka|34.43|135.24;DPS|Bali|-8.75|115.17;SYD|Sydney|-33.94|151.18;MEL|Melbourne|-37.67|144.84;AKL|Auckland|-37.01|174.79;JFK|New York|40.64|-73.78;BOS|Boston|42.36|-71.01;ORD|Chicago|41.98|-87.9;ATL|Atlanta|33.64|-84.43;MIA|Miami|25.79|-80.29;DFW|Dallas|32.9|-97.04;DEN|Denver|39.86|-104.67;LAX|Los Angeles|33.94|-118.41;SFO|San Francisco|37.62|-122.38;SEA|Seattle|47.45|-122.31;YYZ|Toronto|43.68|-79.63;YVR|Vancouver|49.19|-123.18;MEX|Mexico City|19.44|-99.07;CUN|Cancún|21.04|-86.87;GRU|São Paulo|-23.43|-46.47;EZE|Buenos Aires|-34.82|-58.54;BOG|Bogotá|4.7|-74.15;LIM|Lima|-12.02|-77.11;SCL|Santiago|-33.39|-70.79;HNL|Honolulu|21.32|-157.92".split(";").map(s=>{const p=s.split("|");return{c:p[0],n:p[1],la:+p[2],lo:+p[3]}});
+const L=[[[-168,66],[-140,70],[-95,72],[-80,63],[-62,58],[-55,50],[-67,44],[-76,35],[-81,25],[-97,26],[-105,20],[-95,16],[-85,10],[-79,8],[-92,15],[-110,24],[-117,32],[-124,41],[-125,49],[-140,60],[-165,60]],
+[[-55,60],[-45,60],[-20,70],[-20,82],[-60,82],[-70,76]],
+[[-80,8],[-60,10],[-50,0],[-35,-6],[-40,-22],[-58,-38],[-66,-55],[-74,-50],[-72,-30],[-81,-5]],
+[[-10,36],[-9,43],[-2,48],[5,53],[10,57],[20,70],[40,68],[70,73],[110,77],[140,72],[180,68],[170,60],[140,52],[130,42],[122,30],[120,22],[108,12],[104,1],[98,8],[93,20],[80,15],[77,8],[70,20],[57,25],[48,29],[35,31],[27,37],[22,37],[12,38],[8,44],[-2,37]],
+[[35,30],[43,13],[52,16],[59,22],[56,26],[48,29]],
+[[-17,21],[-10,35],[10,37],[32,31],[43,12],[51,12],[40,-5],[40,-15],[33,-27],[20,-35],[12,-18],[9,4],[-8,4],[-17,14]],
+[[114,-22],[130,-12],[142,-11],[153,-26],[147,-38],[135,-35],[115,-34]],
+[[-5,50],[2,51],[0,58],[-6,58]],[[130,32],[141,36],[142,44],[140,41]]];
+const $=id=>document.getElementById(id);
+const km=(a,b)=>{const r=Math.PI/180,h=Math.sin((b.la-a.la)*r/2)**2+Math.cos(a.la*r)*Math.cos(b.la*r)*Math.sin((b.lo-a.lo)*r/2)**2;return 12742*Math.asin(Math.sqrt(h))};
+const mins=(a,b)=>Math.round(30+km(a,b)/13.5);
+const fmt=m=>Math.floor(m/60)+"h "+String(m%60).padStart(2,"0");
+$("ap").innerHTML=D.map(a=>`<option value="${a.c} – ${a.n}">`).join("");
+function find(v){v=v.trim().toUpperCase();if(!v)return;return D.find(a=>a.c==v.slice(0,3))||(v.length>1?D.find(a=>a.n.toUpperCase().includes(v)):0)}
+let A,B,M=[],sel=null,tol=30,V={x:10,y:30,s:3},W=1,H=1;
+const cv=$("m"),cx=cv.getContext("2d");
+const P=(la,lo)=>[(lo-V.x)*V.s+W/2,(V.y-la)*V.s+H/2];
+function size(){const r=cv.getBoundingClientRect(),d=devicePixelRatio||1;W=r.width;H=r.height;cv.width=W*d;cv.height=H*d;cx.setTransform(d,0,0,d,0,0)}
+function fit(){const q=[A,B,...M.map(m=>m.x)].filter(Boolean);if(!q.length)return;const la=q.map(p=>p.la),lo=q.map(p=>p.lo),a=Math.min(...la),b=Math.max(...la),c=Math.min(...lo),e=Math.max(...lo);V.x=(c+e)/2;V.y=(a+b)/2;V.s=Math.max(W/360,Math.min(W/((e-c)*1.2+10),H/((b-a)*1.2+8),40))}
+function draw(){
+const g=getComputedStyle(document.documentElement),C=n=>g.getPropertyValue(n).trim();
+cx.fillStyle=C("--sea");cx.fillRect(0,0,W,H);cx.fillStyle=C("--land");
+for(const p of L){cx.beginPath();p.forEach(([lo,la],i)=>{const[x,y]=P(la,lo);i?cx.lineTo(x,y):cx.moveTo(x,y)});cx.fill()}
+for(const a of D){const[x,y]=P(a.la,a.lo);cx.fillStyle=C("--dim");cx.fillRect(x-1,y-1,2,2)}
+cx.font="11px system-ui,sans-serif";cx.textAlign="left";
+const lab=M.length<=60;
+const s=sel&&(sel==A||sel==B?null:M.find(m=>m.x==sel));
+if(s&&A&&B){cx.setLineDash([5,4]);cx.lineWidth=1.5;[[A,"--a"],[B,"--b"]].forEach(([o,c])=>{const[x1,y1]=P(o.la,o.lo),[x2,y2]=P(s.x.la,s.x.lo);cx.strokeStyle=C(c);cx.beginPath();cx.moveTo(x1,y1);cx.lineTo(x2,y2);cx.stroke()});cx.setLineDash([])}
+for(const m of M){const[x,y]=P(m.x.la,m.x.lo),on=s&&s.x==m.x;cx.fillStyle=C("--ok");cx.globalAlpha=.85;cx.beginPath();cx.arc(x,y,on?8:5,0,7);cx.fill();cx.globalAlpha=1;
+if(lab||on){cx.fillStyle=C("--fg");cx.fillText(m.x.c,x+7,y+4)}}
+for(const[o,c]of[[A,"--a"],[B,"--b"]]){if(!o)continue;const[x,y]=P(o.la,o.lo);cx.fillStyle=C(c);cx.beginPath();cx.arc(x,y,8,0,7);cx.fill();cx.strokeStyle="#fff";cx.lineWidth=2;cx.stroke();cx.fillStyle=C("--fg");cx.font="bold 12px system-ui,sans-serif";cx.fillText(o.c,x+11,y+4);cx.font="11px system-ui,sans-serif"}
+}
+function info(){const s=sel&&M.find(m=>m.x==sel);$("info").innerHTML=s?`${s.x.n} (${s.x.c}): <span class="ca">${fmt(s.a)} from ${A.c}</span> · <span class="cb">${fmt(s.b)} from ${B.c}</span>`:(sel?`${sel.n} (${sel.c})`:"")}
+function update(fitView){
+tol=+$("tl").value;$("tv").textContent="±"+tol+" min";
+A=find($("ia").value);B=find($("ib").value);sel=null;
+if(!A||!B){M=[];$("st").textContent="Enter two known airports, e.g. MUC, Frankfurt or JFK.";}
+else{M=D.filter(x=>x!=A&&x!=B).map(x=>({x,a:mins(A,x),b:mins(B,x)})).filter(m=>Math.abs(m.a-m.b)<=tol).sort((p,q)=>p.a+p.b-q.a-q.b);
+$("st").textContent=`${A.c} ↔ ${B.c}: ${M.length} destination${M.length==1?"":"s"} with flight times within ±${tol} min of each other`+` (${A.c}–${B.c} is about ${fmt(mins(A,B))})`}
+$("list").innerHTML=M.map((m,i)=>`<button data-i="${i}"><span>${m.x.c} <span class="mu">${m.x.n}</span></span><span class="ca">${fmt(m.a)}</span><span class="cb">${fmt(m.b)}</span><span class="mu">Δ${Math.abs(m.a-m.b)}</span></button>`).join("");
+if(fitView!==false)fit();info();draw()}
+function pick(s){sel=s;info();[...$("list").children].forEach((b,i)=>b.classList.toggle("on",M[i]&&M[i].x==s));draw()}
+["ia","ib"].forEach(i=>$(i).addEventListener("change",()=>update()));
+$("tl").addEventListener("input",()=>update());
+$("list").addEventListener("click",e=>{const b=e.target.closest("button");if(b)pick(M[+b.dataset.i].x)});
+const zoom=f=>{V.s=Math.max(W/360,Math.min(60,V.s*f));draw()};
+$("zi").onclick=()=>zoom(1.5);$("zo").onclick=()=>zoom(1/1.5);$("zf").onclick=()=>{fit();draw()};
+cv.addEventListener("wheel",e=>{e.preventDefault();zoom(e.deltaY<0?1.2:1/1.2)},{passive:false});
+let dr=null;
+cv.addEventListener("pointerdown",e=>{cv.setPointerCapture(e.pointerId);dr={x:e.clientX,y:e.clientY,m:0}});
+cv.addEventListener("pointermove",e=>{if(!dr)return;const dx=e.clientX-dr.x,dy=e.clientY-dr.y;dr.m+=Math.abs(dx)+Math.abs(dy);V.x-=dx/V.s;V.y+=dy/V.s;dr.x=e.clientX;dr.y=e.clientY;draw()});
+cv.addEventListener("pointerup",e=>{if(dr&&dr.m<6){const r=cv.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top;let best=null,bd=20;[...M.map(m=>m.x),A,B].forEach(o=>{if(!o)return;const[x,y]=P(o.la,o.lo),d=Math.hypot(x-px,y-py);if(d<bd){bd=d;best=o}});pick(best)}dr=null});
+addEventListener("resize",()=>{size();draw()});
+size();update();
+</script></body></html>
